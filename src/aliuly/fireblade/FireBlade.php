@@ -8,7 +8,6 @@ use pocketmine\command\CommandSender;
 use pocketmine\command\Command;
 use pocketmine\Player;
 use pocketmine\item\Item;
-use pocketmine\scheduler\CallbackTask;
 use pocketmine\event\Listener;
 use pocketmine\event\player\PlayerQuitEvent;
 use pocketmine\event\player\PlayerItemHeldEvent;
@@ -25,20 +24,45 @@ class FireBlade extends PluginBase implements CommandExecutor,Listener {
 		if ($msg) $sender->sendMessage("You can only use this command in-game");
 		return false;
 	}
+	public function getItem($txt,$default) {
+		$r = explode(":",$txt);
+		if (count($r)) {
+			if (!isset($r[1])) $r[1] = 0;
+			$item = Item::fromString($r[0].":".$r[1]);
+			if (isset($r[2])) $item->setCount(intval($r[2]));
+			if ($item->getId() != Item::AIR) {
+				return $item;
+			}
+		}
+		$this->getLogger()->info("$msg: Invalid item $txt, using default");
+		$item = Item::fromString($default.":0");
+		$item->setCount(1);
+		return $item;
+	}
+
 	public function onEnable(){
 		if (!is_dir($this->getDataFolder())) mkdir($this->getDataFolder());
 		$defaults = [
-			"sword1" => Item::IRON_SWORD,
-			"sword2" => Item::GOLD_SWORD,
+			"version" => $this->getDescription()->getVersion(),
+
+			"sword1" => "IRON_SWORD",
+			"sword2" => "GOLD_SWORD",
 			"sword_txt" => "You must be holding an Iron Sword\nor a Gold Sword",
 			"timer" => 5,
 			"effect" => 10,
 		];
 		$this->cf = (new Config($this->getDataFolder()."config.yml",
 								 Config::YAML,$defaults))->getAll();
+		$this->cf["sword1"] = $this->getItem($this->cf["sword1"],
+														 Item::IRON_SWORD,
+														 "sword1")->getId();
+		$this->cf["sword2"] = $this->getItem($this->cf["sword2"],
+														 Item::GOLD_SWORD,
+														 "sword2")->getId();
+
 		$this->getServer()->getPluginManager()->registerEvents($this, $this);
 		$this->players = [];
-		$tt = new CallbackTask([$this,"updateTimer"],[]);
+		$tt = new PluginCallbackTask($this,[$this,"updateTimer"],[]);
 		$this->getServer()->getScheduler()->scheduleRepeatingTask($tt,$this->cf["timer"]);
 	}
 	public function onQuit(PlayerQuitEvent $ev) {
@@ -48,6 +72,9 @@ class FireBlade extends PluginBase implements CommandExecutor,Listener {
 			unset($this->players[$n]);
 		}
 	}
+	/**
+	 * @priority HIGH
+	 */
 	public function onAttack(EntityDamageEvent $ev) {
 		if ($ev->isCancelled()) return;
 		if(!($ev instanceof EntityDamageByEntityEvent)) return;
