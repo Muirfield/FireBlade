@@ -1,0 +1,7 @@
+---
+branches: master
+projects:
+  FireBlade:
+    path: ""
+    model: default
+...
